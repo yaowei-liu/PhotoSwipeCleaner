@@ -2,12 +2,12 @@ import SwiftUI
 
 @main
 struct PhotoSwipeCleanerApp: App {
-    @StateObject private var photoCleanupVM = PhotoCleanupViewModel()
-
+    @StateObject private var photoSwipeViewModel = PhotoSwipeViewModel()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(photoCleanupVM)
+            PhotoSwipeView()
+                .environmentObject(photoSwipeViewModel)
         }
     }
 }

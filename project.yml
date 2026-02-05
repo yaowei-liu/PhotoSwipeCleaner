@@ -1,53 +1,40 @@
 name: PhotoSwipeCleaner
 options:
-  bundleIdPrefix: com.photoclean
+  bundleIdPrefix: com.yw
+  developmentLanguage: en
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "15.0"
-  generateEmptyDirectories: true
 
 settings:
   base:
-    SWIFT_VERSION: "5.9"
-    TARGETED_DEVICE_FAMILY: "1,2"
-    MARKETING_VERSION: "1.0.0"
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
 
 targets:
   PhotoSwipeCleaner:
     type: application
     platform: iOS
     sources:
-      - path: PhotoSwipeCleaner
-        excludes:
-          - "**/.DS_Store"
+      - PhotoSwipeCleaner
     settings:
       base:
         INFOPLIST_FILE: PhotoSwipeCleaner/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.photoclean.PhotoSwipeCleaner
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        DEVELOPMENT_TEAM: ""
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGNING_ALLOWED: NO
-    info:
-      path: PhotoSwipeCleaner/Info.plist
-      properties:
-        CFBundleName: PhotoSwipeCleaner
-        CFBundleDisplayName: Photo Cleaner
-        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
-        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        CFBundleShortVersionString: $(MARKETING_VERSION)
-        CFBundlePackageType: APPL
-        CFBundleExecutable: $(EXECUTABLE_NAME)
-        UILaunchScreen:
-          UIColorName: ""
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
-        UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
-        NSPhotoLibraryUsageDescription: "Photo Cleaner needs access to your photo library to help you review and clean up photos."
-        NSPhotoLibraryAddUsageDescription: "Photo Cleaner needs permission to delete photos from your library."
+        PRODUCT_BUNDLE_IDENTIFIER: com.yw.PhotoSwipeCleaner
+        SWIFT_VERSION: "5.0"
+        ENABLE_PREVIEWS: YES
+        PRODUCT_NAME: PhotoSwipeCleaner
+    dependencies: []
+
+schemes:
+  PhotoSwipeCleaner:
+    build:
+      targets:
+        PhotoSwipeCleaner: all
+    run:
+      config: Debug
+    archive:
+      config: Release
