@@ -27,9 +27,9 @@ struct PhotoCard: View {
             if let uiImage = uiImage {
                 Image(uiImage: uiImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
+                    .background(Color.black)
             } else {
                 ProgressView()
                     .scaleEffect(1.5)
@@ -110,7 +110,7 @@ struct PhotoCard: View {
         fastOptions.isNetworkAccessAllowed = true
         fastOptions.isSynchronous = false
 
-        manager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: fastOptions) { image, _ in
+        manager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFit, options: fastOptions) { image, _ in
             DispatchQueue.main.async {
                 if let image {
                     self.uiImage = image
@@ -124,7 +124,7 @@ struct PhotoCard: View {
         highOptions.isNetworkAccessAllowed = true
         highOptions.isSynchronous = false
 
-        manager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: highOptions) { image, _ in
+        manager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFit, options: highOptions) { image, _ in
             DispatchQueue.main.async {
                 if let image {
                     self.uiImage = image
