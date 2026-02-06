@@ -29,6 +29,33 @@ targets:
         PRODUCT_NAME: PhotoSwipeCleaner
     dependencies: []
 
+  PhotoSwipeCleanerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - PhotoSwipeCleanerTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.yw.PhotoSwipeCleanerTests
+        SWIFT_VERSION: "5.0"
+    dependencies:
+      - target: PhotoSwipeCleaner
+
+  PhotoSwipeCleanerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - PhotoSwipeCleanerUITests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.yw.PhotoSwipeCleanerUITests
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: PhotoSwipeCleaner
+    dependencies:
+      - target: PhotoSwipeCleaner
+
 schemes:
   PhotoSwipeCleaner:
     build:
@@ -36,5 +63,11 @@ schemes:
         PhotoSwipeCleaner: all
     run:
       config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - name: PhotoSwipeCleanerTests
+        - name: PhotoSwipeCleanerUITests
     archive:
       config: Release

@@ -56,9 +56,17 @@ class PhotoSwipeViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let batchSize = 20
     
-    init(photosService: any PhotosServicing = PhotosService()) {
-        self.photosService = photosService
+    init() {
+        self.photosService = PhotosService()
+        bindServicePublishers()
+    }
 
+    init(photosService: any PhotosServicing) {
+        self.photosService = photosService
+        bindServicePublishers()
+    }
+
+    private func bindServicePublishers() {
         photosService.photosPublisher
             .receive(on: DispatchQueue.main)
             .assign(to: \.photos, on: self)

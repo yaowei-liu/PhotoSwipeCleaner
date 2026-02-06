@@ -40,6 +40,7 @@ struct PhotoCard: View {
         }
         .cornerRadius(20)
         .offset(x: dragAmount.width)
+        .offset(y: dragAmount.height)
         .rotationEffect(.degrees(dragAmount.width / 15.0))
         .scaleEffect(1.0 - min(abs(dragAmount.width) / 800.0, 0.2))
         .opacity(1.0 - min(abs(dragAmount.width) / 250.0, 0.5))
@@ -80,23 +81,54 @@ struct PhotoCard: View {
                                 .foregroundColor(.white)
                         }
                     )
+            } else if dragAmount.height < -swipeThreshold && abs(dragAmount.height) > abs(dragAmount.width) {
+                Color.yellow.opacity(0.3)
+                    .overlay(
+                        VStack {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 50))
+                                .foregroundColor(.white)
+                            Text("FAVORITE")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                    )
             }
         }
         .animation(.easeInOut(duration: 0.2), value: dragAmount.width)
     }
     
     private func loadImage() {
+        guard let asset = photo.asset else { return }
         let manager = PHImageManager.default()
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
-        options.isSynchronous = false
-        
         let targetSize = CGSize(width: 400, height: 600)
-        
-        manager.requestImage(for: photo.asset, targetSize: targetSize, contentMode: .aspectFill, options: options) { image, info in
+
+        let fastOptions = PHImageRequestOptions()
+        fastOptions.deliveryMode = .fastFormat
+        fastOptions.resizeMode = .fast
+        fastOptions.isNetworkAccessAllowed = true
+        fastOptions.isSynchronous = false
+
+        manager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: fastOptions) { image, _ in
             DispatchQueue.main.async {
-                self.uiImage = image
+                if let image {
+                    self.uiImage = image
+                }
+            }
+        }
+
+        let highOptions = PHImageRequestOptions()
+        highOptions.deliveryMode = .highQualityFormat
+        highOptions.resizeMode = .exact
+        highOptions.isNetworkAccessAllowed = true
+        highOptions.isSynchronous = false
+
+        manager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: highOptions) { image, _ in
+            DispatchQueue.main.async {
+                if let image {
+                    self.uiImage = image
+                }
             }
         }
     }
