@@ -1,14 +1,14 @@
 import SwiftUI
+import UIKit
 
 struct PhotoSwipeView: View {
     @EnvironmentObject var viewModel: PhotoSwipeViewModel
     @State private var dragAmount = CGSize.zero
     @State private var swipeDirection: PhotoSwipeView.SwipeDirection = .none
-    @State private var showingBatchConfirmation = false
     @State private var showingPhotoDetail: Photo?
     
     enum SwipeDirection {
-        case none, left, right
+        case none, left, right, up
     }
     
     var body: some View {
@@ -20,6 +20,8 @@ struct PhotoSwipeView: View {
                     ProgressView("Loading photos...")
                         .foregroundColor(.white)
                         .scaleEffect(1.5)
+                } else if viewModel.permissionDenied {
+                    PermissionDeniedView()
                 } else if let photo = viewModel.currentPhoto {
                     photoCardView(photo: photo)
                 } else if viewModel.showingCompletion {
@@ -35,6 +37,22 @@ struct PhotoSwipeView: View {
             .navigationTitle("Photo Cleaner")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Menu {
+                        ForEach(MediaCategory.allCases) { category in
+                            Button {
+                                Task {
+                                    await viewModel.selectCategory(category)
+                                }
+                            } label: {
+                                Label(category.rawValue, systemImage: category.icon)
+                            }
+                        }
+                    } label: {
+                        Label(viewModel.selectedCategory.rawValue, systemImage: viewModel.selectedCategory.icon)
+                            .foregroundColor(.white)
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     VStack(alignment: .trailing) {
                         Text(viewModel.progressText)
@@ -52,28 +70,38 @@ struct PhotoSwipeView: View {
                 await viewModel.requestPermissionAndLoadPhotos()
             }
         }
-        .fullScreenCover(isPresented: $showingBatchConfirmation) {
+        .fullScreenCover(isPresented: $viewModel.showBatchConfirmation) {
             BatchConfirmationView(
                 onConfirm: {
-                    showingBatchConfirmation = false
                     Task {
                         await viewModel.confirmBatchDelete()
                     }
                 },
                 onCancel: {
-                    showingBatchConfirmation = false
-                    viewModel.cancelBatchDelete()
+                    Task {
+                        await viewModel.cancelBatchDelete()
+                    }
                 }
             )
         }
         .sheet(item: $showingPhotoDetail) { photo in
             PhotoDetailView(photo: photo)
         }
+        .alert("Photo Cleanup", isPresented: Binding(
+            get: { viewModel.alertMessage != nil },
+            set: { if !$0 { viewModel.alertMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.alertMessage = nil }
+        } message: {
+            Text(viewModel.alertMessage ?? "")
+        }
         .gesture(
             DragGesture()
                 .onChanged { value in
                     dragAmount = value.translation
-                    if value.translation.width > 50 {
+                    if value.translation.height < -50 && abs(value.translation.height) > abs(value.translation.width) {
+                        swipeDirection = .up
+                    } else if value.translation.width > 50 {
                         swipeDirection = .right
                     } else if value.translation.width < -50 {
                         swipeDirection = .left
@@ -84,7 +112,9 @@ struct PhotoSwipeView: View {
                 .onEnded { value in
                     let threshold: CGFloat = 100
                     
-                    if value.translation.width > threshold {
+                    if value.translation.height < -threshold && abs(value.translation.height) > abs(value.translation.width) {
+                        handleSwipeUp()
+                    } else if value.translation.width > threshold {
                         handleSwipeRight()
                     } else if value.translation.width < -threshold {
                         handleSwipeLeft()
@@ -121,15 +151,11 @@ struct PhotoSwipeView: View {
     
     private func handleSwipeLeft() {
         guard viewModel.currentPhoto != nil else { return }
-        
+
         swipeDirection = .left
-        
+
         Task {
             await viewModel.swipeLeft()
-            
-            if viewModel.showBatchConfirmation {
-                showingBatchConfirmation = true
-            }
         }
         
         resetSwipe()
@@ -137,9 +163,21 @@ struct PhotoSwipeView: View {
     
     private func handleSwipeRight() {
         guard viewModel.currentPhoto != nil else { return }
-        
+
         swipeDirection = .right
-        viewModel.swipeRight()
+        Task {
+            await viewModel.swipeRight()
+        }
+        resetSwipe()
+    }
+
+    private func handleSwipeUp() {
+        guard viewModel.currentPhoto != nil else { return }
+
+        swipeDirection = .up
+        Task {
+            await viewModel.swipeUp()
+        }
         resetSwipe()
     }
     
@@ -150,6 +188,33 @@ struct PhotoSwipeView: View {
                 swipeDirection = .none
             }
         }
+    }
+}
+
+struct PermissionDeniedView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 56))
+                .foregroundColor(.orange)
+
+            Text("Photo Access Required")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+
+            Text("Enable photo access in Settings to start cleaning your library.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.gray)
+                .padding(.horizontal)
+
+            Button("Open Settings") {
+                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                UIApplication.shared.open(url)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
     }
 }
 
@@ -169,6 +234,7 @@ struct CompletionView: View {
             
             VStack(spacing: 16) {
                 StatRow(icon: "checkmark.circle.fill", title: "Kept", value: "\(viewModel.keptCount)", color: .green)
+                StatRow(icon: "star.fill", title: "Favorited", value: "\(viewModel.favoritedCount)", color: .yellow)
                 StatRow(icon: "trash.circle.fill", title: "Deleted", value: "\(viewModel.deletedCount)", color: .red)
                 
                 if viewModel.savedSpace > 0 {
