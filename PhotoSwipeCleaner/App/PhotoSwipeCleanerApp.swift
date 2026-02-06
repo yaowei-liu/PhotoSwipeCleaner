@@ -6,8 +6,18 @@ struct PhotoSwipeCleanerApp: App {
     
     var body: some Scene {
         WindowGroup {
-            PhotoSwipeView()
-                .environmentObject(photoSwipeViewModel)
+            TabView {
+                PhotoSwipeView()
+                    .tabItem {
+                        Label("Swipe", systemImage: "rectangle.stack.fill")
+                    }
+
+                StatusView()
+                    .tabItem {
+                        Label("Status", systemImage: "chart.bar.fill")
+                    }
+            }
+            .environmentObject(photoSwipeViewModel)
         }
     }
 }

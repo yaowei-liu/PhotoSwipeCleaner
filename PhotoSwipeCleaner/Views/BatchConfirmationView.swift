@@ -109,6 +109,7 @@ struct ThumbnailView: View {
     }
     
     private func loadThumbnail() {
+        guard let asset = photo.asset else { return }
         let manager = PHImageManager.default()
         let options = PHImageRequestOptions()
         options.deliveryMode = .fastFormat
@@ -116,7 +117,7 @@ struct ThumbnailView: View {
         
         let targetSize = CGSize(width: 160, height: 160)
         
-        manager.requestImage(for: photo.asset, targetSize: targetSize, contentMode: .aspectFill, options: options) { image, info in
+        manager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: options) { image, info in
             DispatchQueue.main.async {
                 self.uiImage = image
             }

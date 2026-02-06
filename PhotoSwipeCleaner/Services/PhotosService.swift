@@ -23,6 +23,12 @@ class PhotosService: ObservableObject {
     private let indexStore = PhotoIndexStore()
     private var scanTask: Task<Void, Never>?
 
+    private struct DuplicatePrehashBucket: Hashable {
+        let pixelWidth: Int
+        let pixelHeight: Int
+        let fileSizeBucket: Int64
+    }
+
     init() {
         indexRecords = indexStore.load()
     }
@@ -229,24 +235,26 @@ class PhotosService: ObservableObject {
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let fetchResult = PHAsset.fetchAssets(with: .image, options: options)
+        let metadataCount = fetchResult.count
 
         await MainActor.run {
-            scanTotalCount = fetchResult.count
+            scanTotalCount = metadataCount
             scanScannedCount = 0
             scanProgress = 0
         }
 
         var records = indexRecords
-        for index in 0..<fetchResult.count {
-            if Task.isCancelled { break }
+        var scanCancelled = false
 
-            while isScanPaused {
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                if Task.isCancelled { break }
+        // Phase 1: collect lightweight metadata for all assets.
+        for index in 0..<metadataCount {
+            if await waitIfPausedOrCancelled() {
+                scanCancelled = true
+                break
             }
 
             let asset = fetchResult.object(at: index)
-            let record = await buildIndexRecord(for: asset)
+            let record = await buildIndexRecord(for: asset, includeFingerprint: false)
             records[asset.localIdentifier] = record
 
             if index % 25 == 0 {
@@ -261,6 +269,54 @@ class PhotosService: ObservableObject {
             }
         }
 
+        // Phase 2: compute fingerprints only for duplicate candidates.
+        if !scanCancelled {
+            let candidateIdentifiers = candidateIdentifiersForFingerprinting(from: records)
+            let totalWork = metadataCount + candidateIdentifiers.count
+
+            await MainActor.run {
+                scanTotalCount = totalWork
+                if totalWork > 0 {
+                    scanProgress = Double(scanScannedCount) / Double(totalWork)
+                }
+            }
+
+            for (candidateIndex, identifier) in candidateIdentifiers.enumerated() {
+                if await waitIfPausedOrCancelled() {
+                    scanCancelled = true
+                    break
+                }
+
+                guard let asset = fetchAsset(by: identifier),
+                      var record = records[identifier] else {
+                    continue
+                }
+
+                record = AssetIndexRecord(
+                    assetIdentifier: record.assetIdentifier,
+                    pixelWidth: record.pixelWidth,
+                    pixelHeight: record.pixelHeight,
+                    creationDate: record.creationDate,
+                    fileSize: record.fileSize,
+                    isLocal: record.isLocal,
+                    cacheStatus: record.cacheStatus,
+                    fingerprint: await fingerprintForExactDuplicate(asset: asset, localOnly: true)
+                )
+                records[identifier] = record
+
+                if candidateIndex % 25 == 0 {
+                    indexStore.save(records)
+                }
+
+                await MainActor.run {
+                    scanScannedCount = metadataCount + candidateIndex + 1
+                    if scanTotalCount > 0 {
+                        scanProgress = Double(scanScannedCount) / Double(scanTotalCount)
+                    }
+                }
+            }
+        }
+
         indexStore.save(records)
         let finalRecords = records
         await MainActor.run {
@@ -271,10 +327,12 @@ class PhotosService: ObservableObject {
         }
     }
 
-    private func buildIndexRecord(for asset: PHAsset) async -> AssetIndexRecord {
+    private func buildIndexRecord(for asset: PHAsset, includeFingerprint: Bool) async -> AssetIndexRecord {
         let fileSize = assetResourceFileSize(for: asset)
         let localAvailable = await checkLocalAvailability(for: asset)
-        let fingerprint = await fingerprintForExactDuplicate(asset: asset, localOnly: true)
+        let fingerprint = includeFingerprint
+            ? await fingerprintForExactDuplicate(asset: asset, localOnly: true)
+            : nil
 
         return AssetIndexRecord(
             assetIdentifier: asset.localIdentifier,
@@ -286,6 +344,31 @@ class PhotosService: ObservableObject {
             cacheStatus: localAvailable ? "local" : "icloud",
             fingerprint: fingerprint
         )
+    }
+
+    private func waitIfPausedOrCancelled() async -> Bool {
+        if Task.isCancelled { return true }
+        while isScanPaused {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            if Task.isCancelled { return true }
+        }
+        return false
+    }
+
+    private func candidateIdentifiersForFingerprinting(from records: [String: AssetIndexRecord]) -> [String] {
+        let localRecords = records.values.filter { $0.isLocal }
+        let grouped = Dictionary(grouping: localRecords) { record in
+            DuplicatePrehashBucket(
+                pixelWidth: record.pixelWidth,
+                pixelHeight: record.pixelHeight,
+                fileSizeBucket: max(record.fileSize / 65_536, 0)
+            )
+        }
+
+        return grouped.values
+            .filter { $0.count > 1 }
+            .flatMap { $0.map(\.assetIdentifier) }
+            .sorted()
     }
 
     private func checkLocalAvailability(for asset: PHAsset) async -> Bool {
