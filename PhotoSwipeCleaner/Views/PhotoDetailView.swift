@@ -9,6 +9,14 @@ struct PhotoDetailView: View {
     @State private var locationString: String = "Loading..."
     @State private var uiImage: UIImage?
     @State private var zoomScale: CGFloat = 1
+
+    private var resolvedAsset: PHAsset? {
+        if let asset = photo.asset {
+            return asset
+        }
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: [photo.assetIdentifier], options: nil)
+        return result.firstObject
+    }
     
     var body: some View {
         NavigationView {
@@ -86,19 +94,19 @@ struct PhotoDetailView: View {
                 .foregroundColor(.white)
             
             VStack(spacing: 12) {
-                MetadataRow(icon: "calendar", title: "Date Taken", value: formatDate(photo.asset?.creationDate))
-                MetadataRow(icon: "folder", title: "Collection", value: photo.asset?.collectionNames.first ?? "Library")
+                MetadataRow(icon: "calendar", title: "Date Taken", value: formatDate(resolvedAsset?.creationDate))
+                MetadataRow(icon: "folder", title: "Collection", value: resolvedAsset?.collectionNames.first ?? "Library")
                 MetadataRow(
                     icon: "arrow.left.and.right",
                     title: "Dimensions",
-                    value: photo.asset.map { "\($0.pixelWidth) × \($0.pixelHeight)" } ?? "Unknown"
+                    value: resolvedAsset.map { "\($0.pixelWidth) × \($0.pixelHeight)" } ?? "Unknown"
                 )
                 MetadataRow(icon: "doc", title: "File Size", value: formatFileSize(fileSize))
                 
-                if photo.asset?.location != nil {
+                if resolvedAsset?.location != nil {
                     MetadataRow(icon: "location.fill", title: "Location", value: locationString)
                     
-                    if let location = photo.asset?.location {
+                    if let location = resolvedAsset?.location {
                         MetadataRow(icon: "mappin", title: "Coordinates", value: formatCoordinates(location))
                     }
                 } else {
@@ -116,7 +124,7 @@ struct PhotoDetailView: View {
     }
     
     private func loadImage() {
-        guard let asset = photo.asset else { return }
+        guard let asset = resolvedAsset else { return }
         let manager = PHImageManager.default()
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
@@ -130,7 +138,7 @@ struct PhotoDetailView: View {
     }
     
     private func loadLocation() {
-        guard let location = photo.asset?.location else {
+        guard let location = resolvedAsset?.location else {
             locationString = "No Location Data"
             return
         }
