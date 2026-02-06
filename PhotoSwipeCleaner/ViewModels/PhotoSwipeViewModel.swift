@@ -55,6 +55,7 @@ class PhotoSwipeViewModel: ObservableObject {
     private let photosService: any PhotosServicing
     private var cancellables = Set<AnyCancellable>()
     private let batchSize = 20
+    private var currentBatchCount = 0
     
     init() {
         self.photosService = PhotosService()
@@ -129,6 +130,15 @@ class PhotoSwipeViewModel: ObservableObject {
     }
     
     func requestPermissionAndLoadPhotos() async {
+        // `onAppear` can fire again when overlays/sheets close; don't interrupt an active batch.
+        if isLoading || showBatchConfirmation || showingCompletion {
+            return
+        }
+        let activeBatchCount = max(currentBatchCount, photos.count)
+        if !photos.isEmpty && processedInBatch < activeBatchCount {
+            return
+        }
+
         await photosService.requestPhotoLibraryPermission()
         guard photosService.authorizationStatus == .authorized || photosService.authorizationStatus == .limited else {
             permissionDenied = true
@@ -142,9 +152,11 @@ class PhotoSwipeViewModel: ObservableObject {
     func loadRandomBatch(resetSeen: Bool = false) async {
         currentIndex = 0
         processedInBatch = 0
+        currentBatchCount = 0
         pendingDeletions.removeAll()
         showBatchConfirmation = false
         await photosService.loadRandomPhotos(category: selectedCategory, count: batchSize, resetSeen: resetSeen)
+        currentBatchCount = photos.count
         
         if photos.isEmpty {
             showingCompletion = true
@@ -275,7 +287,8 @@ class PhotoSwipeViewModel: ObservableObject {
     }
 
     private func finalizeBatchIfNeeded() async {
-        let batchFinished = processedInBatch >= photos.count
+        let activeBatchCount = max(currentBatchCount, photos.count)
+        let batchFinished = activeBatchCount > 0 && processedInBatch >= activeBatchCount
         guard batchFinished else { return }
 
         if pendingDeletions.isEmpty {
